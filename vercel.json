@@ -2,19 +2,5 @@
   "framework": "nextjs",
   "buildCommand": "npm run build",
   "outputDirectory": ".next",
-  "installCommand": "npm install",
-  "env": {
-    "NEXT_PUBLIC_SUPABASE_URL": "@supabase_url",
-    "NEXT_PUBLIC_SUPABASE_ANON_KEY": "@supabase_anon_key",
-    "SUPABASE_SERVICE_ROLE_KEY": "@supabase_service_role_key",
-    "SMTP_HOST": "@smtp_host",
-    "SMTP_PORT": "@smtp_port",
-    "SMTP_USER": "@smtp_user",
-    "SMTP_PASS": "@smtp_pass",
-    "SMTP_SECURE": "@smtp_secure",
-    "LEAD_EMAILS": "@lead_emails",
-    "NEXT_PUBLIC_PHONE": "+34911676448",
-    "NEXT_PUBLIC_SITE_URL": "https://repararpinchazocoche.com",
-    "NEXT_PUBLIC_GA4": "G-70HG8Q49DT"
-  }
+  "installCommand": "npm install"
 }
