@@ -8,8 +8,9 @@ import { faqSchema, breadcrumbSchema, localBusinessSchema } from '@/lib/schemas'
 
 export const dynamic = 'force-dynamic'
 
-export async function generateMetadata({ params }: { params: { district: string; city: string } }): Promise<Metadata> {
-  const slug = `neumaticos-camion/${params.district}/${params.city}/faq`
+export async function generateMetadata({ params }: { params: Promise<{ district: string; city: string }> }): Promise<Metadata> {
+  const { district: districtSlug, city: citySlug } = await params
+  const slug = `neumaticos-camion/${districtSlug}/${citySlug}/faq`
   const { data } = await supabase.from('pages').select('city').eq('slug', slug).single()
   if (!data) return {}
   return {
@@ -56,8 +57,9 @@ const DEFAULT_FAQS = (areaName: string, districtName: string) => [
   { question: `¿Atienden averías en polígonos industriales de ${areaName}?`, answer: `Por supuesto. Los polígonos industriales son una de las zonas donde más frecuentemente prestamos servicio. Conocemos los principales polígonos de ${areaName} y sus accesos.` },
 ]
 
-export default async function FaqPage({ params }: { params: { district: string; city: string } }) {
-  const slug = `neumaticos-camion/${params.district}/${params.city}/faq`
+export default async function FaqPage({ params }: { params: Promise<{ district: string; city: string }> }) {
+  const { district: districtSlug, city: citySlug } = await params
+  const slug = `neumaticos-camion/${districtSlug}/${citySlug}/faq`
   const { data: page } = await supabase.from('pages').select('body_section,city,district,address,status').eq('slug', slug).single()
 
   // If the FAQ page does not exist in Supabase, it's a genuine 404
@@ -65,13 +67,13 @@ export default async function FaqPage({ params }: { params: { district: string; 
   if (page.status === 'draft') notFound()
 
   const area = {
-    slug: params.city,
-    name: page.city || params.city,
+    slug: citySlug,
+    name: page.city || citySlug,
     address: page.address || '',
   }
   const district = {
-    slug: params.district,
-    name: page.district || params.district,
+    slug: districtSlug,
+    name: page.district || districtSlug,
   }
 
   const faqs = page.body_section ? parseFaqs(page.body_section) : DEFAULT_FAQS(area.name, district.name)

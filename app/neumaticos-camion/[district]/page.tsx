@@ -9,10 +9,11 @@ import { localBusinessSchema, breadcrumbSchema } from '@/lib/schemas'
 
 export const dynamic = 'force-dynamic'
 
-export async function generateMetadata({ params }: { params: { district: string } }): Promise<Metadata> {
-  const slug = `neumaticos-camion/${params.district}`
+export async function generateMetadata({ params }: { params: Promise<{ district: string }> }): Promise<Metadata> {
+  const { district: districtSlug } = await params
+  const slug = `neumaticos-camion/${districtSlug}`
   const { data } = await supabase.from('pages').select('meta_title,meta_description,district').eq('slug', slug).single()
-  const name = data?.district || params.district
+  const name = data?.district || districtSlug
   return {
     title: data?.meta_title || `Reparación Pinchazos Camión ${name} | Servicio 24h`,
     description: data?.meta_description || `Reparación urgente de neumáticos de camión en ${name} y alrededores. Técnicos disponibles 24 horas. Llegamos a tu vehículo donde estés. Llama: +34 911 676 448`,
@@ -20,15 +21,16 @@ export async function generateMetadata({ params }: { params: { district: string 
   }
 }
 
-export default async function DistrictPage({ params }: { params: { district: string } }) {
-  const slug = `neumaticos-camion/${params.district}`
+export default async function DistrictPage({ params }: { params: Promise<{ district: string }> }) {
+  const { district: districtSlug } = await params
+  const slug = `neumaticos-camion/${districtSlug}`
   const { data: hub } = await supabase.from('pages').select('*').eq('slug', slug).single()
 
   // Gather all areas in this district from Supabase (service pages only, exclude /faq)
   const { data: areaPages } = await supabase
     .from('pages')
     .select('slug,city')
-    .like('slug', `neumaticos-camion/${params.district}/%`)
+    .like('slug', `neumaticos-camion/${districtSlug}/%`)
     .not('slug', 'like', '%/faq')
     .order('city', { ascending: true })
 
@@ -41,8 +43,8 @@ export default async function DistrictPage({ params }: { params: { district: str
   if (!hub && areas.length === 0) notFound()
 
   const district = {
-    slug: params.district,
-    name: hub?.district || areas[0]?.name || params.district,
+    slug: districtSlug,
+    name: hub?.district || areas[0]?.name || districtSlug,
     address: hub?.address || '',
   }
 

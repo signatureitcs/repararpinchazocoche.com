@@ -12,8 +12,9 @@ import { localBusinessSchema, breadcrumbSchema } from '@/lib/schemas'
 // added to Supabase are instantly live with no rebuild.
 export const dynamic = 'force-dynamic'
 
-export async function generateMetadata({ params }: { params: { district: string; city: string } }): Promise<Metadata> {
-  const slug = `neumaticos-camion/${params.district}/${params.city}`
+export async function generateMetadata({ params }: { params: Promise<{ district: string; city: string }> }): Promise<Metadata> {
+  const { district: districtSlug, city: citySlug } = await params
+  const slug = `neumaticos-camion/${districtSlug}/${citySlug}`
   const { data } = await supabase.from('pages').select('meta_title,meta_description,city,district').eq('slug', slug).single()
 
   if (!data) return {}
@@ -25,8 +26,9 @@ export async function generateMetadata({ params }: { params: { district: string;
   }
 }
 
-export default async function CityPage({ params }: { params: { district: string; city: string } }) {
-  const slug = `neumaticos-camion/${params.district}/${params.city}`
+export default async function CityPage({ params }: { params: Promise<{ district: string; city: string }> }) {
+  const { district: districtSlug, city: citySlug } = await params
+  const slug = `neumaticos-camion/${districtSlug}/${citySlug}`
   // Fetch without status filter first so a mislabeled status won't cause a false 404
   const { data: page } = await supabase.from('pages').select('*').eq('slug', slug).single()
 
@@ -36,22 +38,22 @@ export default async function CityPage({ params }: { params: { district: string;
   // Only hide pages explicitly marked as draft
   if (page.status === 'draft') notFound()
 
-  // Derive display values from the Supabase row (fallback to hardcoded array if present)
+  // Derive display values from the Supabase row
   const area = {
-    slug: params.city,
-    name: page.city || params.city,
+    slug: citySlug,
+    name: page.city || citySlug,
     address: page.address || '',
   }
   const district = {
-    slug: params.district,
-    name: page.district || params.district,
+    slug: districtSlug,
+    name: page.district || districtSlug,
   }
 
   // Sibling areas for internal linking — pull from Supabase
   const { data: siblings } = await supabase
     .from('pages')
     .select('slug,city')
-    .like('slug', `neumaticos-camion/${params.district}/%`)
+    .like('slug', `neumaticos-camion/${districtSlug}/%`)
     .not('slug', 'like', '%/faq')
     .neq('slug', slug)
     .limit(10)

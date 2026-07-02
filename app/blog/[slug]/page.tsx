@@ -8,25 +8,27 @@ import { articleSchema, breadcrumbSchema } from '@/lib/schemas'
 
 export const revalidate = 3600
 
-export async function generateMetadata({ params }: { params: { slug: string } }): Promise<Metadata> {
-  const { data } = await supabase.from('blog_posts').select('meta_title,meta_desc,excerpt').eq('slug', params.slug).single()
+export async function generateMetadata({ params }: { params: Promise<{ slug: string }> }): Promise<Metadata> {
+  const { slug } = await params
+  const { data } = await supabase.from('blog_posts').select('meta_title,meta_desc,excerpt').eq('slug', slug).single()
   if (!data) return {}
   return {
     title: data.meta_title,
     description: data.meta_desc || data.excerpt,
-    alternates: { canonical: `https://repararpinchazocoche.com/blog/${params.slug}` },
+    alternates: { canonical: `https://repararpinchazocoche.com/blog/${slug}` },
   }
 }
 
-export default async function BlogPostPage({ params }: { params: { slug: string } }) {
-  const { data: post } = await supabase.from('blog_posts').select('*').eq('slug', params.slug).single()
+export default async function BlogPostPage({ params }: { params: Promise<{ slug: string }> }) {
+  const { slug } = await params
+  const { data: post } = await supabase.from('blog_posts').select('*').eq('slug', slug).single()
   if (!post) notFound()
 
   const { data: related } = await supabase
     .from('blog_posts')
     .select('slug,title,excerpt,read_time')
     .eq('category', post.category)
-    .neq('slug', params.slug)
+    .neq('slug', slug)
     .limit(3)
 
   const schemas = [
