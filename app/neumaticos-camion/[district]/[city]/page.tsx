@@ -12,11 +12,14 @@ export const dynamicParams = true // Render pages not in generateStaticParams on
 
 export async function generateStaticParams() {
   // Fetch all pages from Supabase that match the pattern neumaticos-camion/{district}/{city}
-  const { data: pages } = await supabase
+  const { data: pages, error } = await supabase
     .from('pages')
     .select('slug')
     .like('slug', 'neumaticos-camion/%')
     .not('slug', 'like', '%/faq') // Exclude FAQ pages - they share parent route
+
+  // Diagnostic: visible in Vercel build logs
+  console.log(`[generateStaticParams city] fetched ${pages?.length ?? 0} pages`, error ? `ERROR: ${error.message}` : '')
 
   const params: { district: string; city: string }[] = []
   
@@ -48,10 +51,14 @@ export async function generateMetadata({ params }: { params: { district: string;
 
 export default async function CityPage({ params }: { params: { district: string; city: string } }) {
   const slug = `neumaticos-camion/${params.district}/${params.city}`
-  const { data: page } = await supabase.from('pages').select('*').eq('slug', slug).eq('status', 'published').single()
+  // Fetch without status filter first so a mislabeled status won't cause a false 404
+  const { data: page } = await supabase.from('pages').select('*').eq('slug', slug).single()
 
-  // If the page does not exist in Supabase, it's a genuine 404
+  // If the page does not exist in Supabase at all, it's a genuine 404
   if (!page) notFound()
+
+  // Only hide pages explicitly marked as draft
+  if (page.status === 'draft') notFound()
 
   // Derive display values from the Supabase row (fallback to hardcoded array if present)
   const area = {

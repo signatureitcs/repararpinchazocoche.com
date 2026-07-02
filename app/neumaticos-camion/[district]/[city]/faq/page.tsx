@@ -78,10 +78,11 @@ const DEFAULT_FAQS = (areaName: string, districtName: string) => [
 
 export default async function FaqPage({ params }: { params: { district: string; city: string } }) {
   const slug = `neumaticos-camion/${params.district}/${params.city}/faq`
-  const { data: page } = await supabase.from('pages').select('body_section,city,district,address').eq('slug', slug).single()
+  const { data: page } = await supabase.from('pages').select('body_section,city,district,address,status').eq('slug', slug).single()
 
   // If the FAQ page does not exist in Supabase, it's a genuine 404
   if (!page) notFound()
+  if (page.status === 'draft') notFound()
 
   const area = {
     slug: params.city,
