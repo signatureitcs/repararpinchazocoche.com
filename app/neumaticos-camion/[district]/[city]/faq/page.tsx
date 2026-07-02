@@ -10,10 +10,12 @@ export const revalidate = 3600
 export const dynamicParams = true
 
 export async function generateStaticParams() {
-  const { data: pages } = await supabase
+  const { data: pages, error } = await supabase
     .from('pages')
     .select('slug')
     .like('slug', 'neumaticos-camion/%/faq')
+
+  console.log(`[generateStaticParams faq] fetched ${pages?.length ?? 0} faq pages`, error ? `ERROR: ${error.message}` : '')
 
   const params: { district: string; city: string }[] = []
   if (pages) {
