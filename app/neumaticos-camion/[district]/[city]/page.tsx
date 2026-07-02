@@ -8,6 +8,8 @@ import { LOCATIONS, getDistrictBySlug, getAreaBySlug } from '@/lib/locations'
 import { supabase } from '@/lib/supabase'
 import { localBusinessSchema, breadcrumbSchema } from '@/lib/schemas'
 
+export const revalidate = 3600 // Revalidate every hour
+
 export async function generateStaticParams() {
   const params: { district: string; city: string }[] = []
   for (const district of LOCATIONS) {
