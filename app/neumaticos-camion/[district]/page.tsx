@@ -4,26 +4,64 @@ import Link from 'next/link'
 import LeadForm from '@/components/forms/LeadForm'
 import Breadcrumb from '@/components/ui/Breadcrumb'
 import TrustBar from '@/components/ui/TrustBar'
-import { LOCATIONS, getDistrictBySlug } from '@/lib/locations'
+import { supabase } from '@/lib/supabase'
 import { localBusinessSchema, breadcrumbSchema } from '@/lib/schemas'
 
+export const revalidate = 3600
+export const dynamicParams = true
+
 export async function generateStaticParams() {
-  return LOCATIONS.map((d) => ({ district: d.slug }))
+  const { data: pages } = await supabase
+    .from('pages')
+    .select('slug')
+    .like('slug', 'neumaticos-camion/%')
+
+  const districts = new Set<string>()
+  if (pages) {
+    for (const page of pages) {
+      const parts = page.slug.split('/')
+      if (parts.length === 2) districts.add(parts[1]) // neumaticos-camion/madrid
+    }
+  }
+  return Array.from(districts).map((district) => ({ district }))
 }
 
 export async function generateMetadata({ params }: { params: { district: string } }): Promise<Metadata> {
-  const district = getDistrictBySlug(params.district)
-  if (!district) return {}
+  const slug = `neumaticos-camion/${params.district}`
+  const { data } = await supabase.from('pages').select('meta_title,meta_description,district').eq('slug', slug).single()
+  const name = data?.district || params.district
   return {
-    title: `Reparación Pinchazos Camión ${district.name} | Servicio 24h`,
-    description: `Reparación urgente de neumáticos de camión en ${district.name} y alrededores. Técnicos disponibles 24 horas. Llegamos a tu vehículo donde estés. Llama: +34 911 676 448`,
-    alternates: { canonical: `https://repararpinchazocoche.com/neumaticos-camion/${params.district}` },
+    title: data?.meta_title || `Reparación Pinchazos Camión ${name} | Servicio 24h`,
+    description: data?.meta_description || `Reparación urgente de neumáticos de camión en ${name} y alrededores. Técnicos disponibles 24 horas. Llegamos a tu vehículo donde estés. Llama: +34 911 676 448`,
+    alternates: { canonical: `https://repararpinchazocoche.com/${slug}` },
   }
 }
 
-export default function DistrictPage({ params }: { params: { district: string } }) {
-  const district = getDistrictBySlug(params.district)
-  if (!district) notFound()
+export default async function DistrictPage({ params }: { params: { district: string } }) {
+  const slug = `neumaticos-camion/${params.district}`
+  const { data: hub } = await supabase.from('pages').select('*').eq('slug', slug).single()
+
+  // Gather all areas in this district from Supabase (service pages only, exclude /faq)
+  const { data: areaPages } = await supabase
+    .from('pages')
+    .select('slug,city')
+    .like('slug', `neumaticos-camion/${params.district}/%`)
+    .not('slug', 'like', '%/faq')
+    .order('city', { ascending: true })
+
+  const areas = (areaPages || []).map(p => {
+    const parts = p.slug.split('/')
+    return { slug: parts[2], name: p.city || parts[2] }
+  })
+
+  // 404 only if the district has no pages at all
+  if (!hub && areas.length === 0) notFound()
+
+  const district = {
+    slug: params.district,
+    name: hub?.district || areas[0]?.name || params.district,
+    address: hub?.address || '',
+  }
 
   const schemas = [
     localBusinessSchema(district.address, district.name),
@@ -86,11 +124,10 @@ export default function DistrictPage({ params }: { params: { district: string } 
             Selecciona tu barrio o municipio para ver información específica y solicitar asistencia
           </p>
           <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-4">
-            {district.areas.map((area) => (
+            {areas.map((area) => (
               <div key={area.slug} className="border border-gray-200 rounded-2xl p-4 hover:border-green-400 hover:bg-green-50 transition">
                 <Link href={`/neumaticos-camion/${district.slug}/${area.slug}`} className="block">
                   <span className="font-bold text-gray-900 block mb-1 hover:text-green-700">{area.name}</span>
-                  <span className="text-xs text-gray-400">{area.postcode}</span>
                 </Link>
                 <div className="flex gap-2 mt-3">
                   <Link href={`/neumaticos-camion/${district.slug}/${area.slug}`} className="text-xs text-green-600 font-medium hover:underline">Servicio</Link>

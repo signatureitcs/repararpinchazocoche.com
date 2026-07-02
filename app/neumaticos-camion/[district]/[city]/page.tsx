@@ -4,11 +4,11 @@ import Link from 'next/link'
 import LeadForm from '@/components/forms/LeadForm'
 import Breadcrumb from '@/components/ui/Breadcrumb'
 import TrustBar from '@/components/ui/TrustBar'
-import { LOCATIONS, getDistrictBySlug, getAreaBySlug } from '@/lib/locations'
 import { supabase } from '@/lib/supabase'
 import { localBusinessSchema, breadcrumbSchema } from '@/lib/schemas'
 
 export const revalidate = 3600 // Revalidate every hour
+export const dynamicParams = true // Render pages not in generateStaticParams on-demand
 
 export async function generateStaticParams() {
   // Fetch all pages from Supabase that match the pattern neumaticos-camion/{district}/{city}
@@ -34,27 +34,49 @@ export async function generateStaticParams() {
 }
 
 export async function generateMetadata({ params }: { params: { district: string; city: string } }): Promise<Metadata> {
-  const district = getDistrictBySlug(params.district)
-  const area = getAreaBySlug(params.district, params.city)
-  if (!district || !area) return {}
-
   const slug = `neumaticos-camion/${params.district}/${params.city}`
-  const { data } = await supabase.from('pages').select('meta_title,meta_description').eq('slug', slug).single()
+  const { data } = await supabase.from('pages').select('meta_title,meta_description,city,district').eq('slug', slug).single()
+
+  if (!data) return {}
 
   return {
-    title: data?.meta_title || `Reparación Pinchazos Camión ${area.name} | Servicio 24h`,
-    description: data?.meta_description || `Reparación urgente de neumáticos de camión en ${area.name}, ${district.name}. Técnicos disponibles 24h. Llamamos al +34 911 676 448`,
+    title: data.meta_title || `Reparación Pinchazos Camión ${data.city} | Servicio 24h`,
+    description: data.meta_description || `Reparación urgente de neumáticos de camión en ${data.city}, ${data.district}. Técnicos disponibles 24h. Llamamos al +34 911 676 448`,
     alternates: { canonical: `https://repararpinchazocoche.com/${slug}` },
   }
 }
 
 export default async function CityPage({ params }: { params: { district: string; city: string } }) {
-  const district = getDistrictBySlug(params.district)
-  const area = getAreaBySlug(params.district, params.city)
-  if (!district || !area) notFound()
-
   const slug = `neumaticos-camion/${params.district}/${params.city}`
   const { data: page } = await supabase.from('pages').select('*').eq('slug', slug).eq('status', 'published').single()
+
+  // If the page does not exist in Supabase, it's a genuine 404
+  if (!page) notFound()
+
+  // Derive display values from the Supabase row (fallback to hardcoded array if present)
+  const area = {
+    slug: params.city,
+    name: page.city || params.city,
+    address: page.address || '',
+  }
+  const district = {
+    slug: params.district,
+    name: page.district || params.district,
+  }
+
+  // Sibling areas for internal linking — pull from Supabase
+  const { data: siblings } = await supabase
+    .from('pages')
+    .select('slug,city')
+    .like('slug', `neumaticos-camion/${params.district}/%`)
+    .not('slug', 'like', '%/faq')
+    .neq('slug', slug)
+    .limit(10)
+
+  const otherAreas = (siblings || []).map(s => {
+    const parts = s.slug.split('/')
+    return { slug: parts[2], name: s.city || parts[2] }
+  })
 
   const schemas = [
     localBusinessSchema(area.address, area.name),
@@ -185,7 +207,7 @@ export default async function CityPage({ params }: { params: { district: string;
         <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8">
           <h3 className="text-xl font-bold text-gray-900 mb-6">Otras zonas en {district.name}</h3>
           <div className="flex flex-wrap gap-3">
-            {district.areas.filter(a => a.slug !== area.slug).slice(0, 10).map(a => (
+            {otherAreas.map(a => (
               <Link key={a.slug} href={`/neumaticos-camion/${district.slug}/${a.slug}`}
                 className="px-4 py-2 bg-gray-100 hover:bg-green-100 text-gray-700 hover:text-green-700 rounded-xl text-sm font-medium transition">
                 {a.name}

@@ -3,37 +3,62 @@ import type { Metadata } from 'next'
 import Link from 'next/link'
 import Breadcrumb from '@/components/ui/Breadcrumb'
 import LeadForm from '@/components/forms/LeadForm'
-import { LOCATIONS, getDistrictBySlug, getAreaBySlug } from '@/lib/locations'
 import { supabase } from '@/lib/supabase'
 import { faqSchema, breadcrumbSchema, localBusinessSchema } from '@/lib/schemas'
 
+export const revalidate = 3600
+export const dynamicParams = true
+
 export async function generateStaticParams() {
+  const { data: pages } = await supabase
+    .from('pages')
+    .select('slug')
+    .like('slug', 'neumaticos-camion/%/faq')
+
   const params: { district: string; city: string }[] = []
-  for (const district of LOCATIONS) {
-    for (const area of district.areas) {
-      params.push({ district: district.slug, city: area.slug })
+  if (pages) {
+    for (const page of pages) {
+      const parts = page.slug.split('/')
+      // neumaticos-camion/madrid/salamanca/faq -> 4 parts
+      if (parts.length === 4) {
+        params.push({ district: parts[1], city: parts[2] })
+      }
     }
   }
   return params
 }
 
 export async function generateMetadata({ params }: { params: { district: string; city: string } }): Promise<Metadata> {
-  const district = getDistrictBySlug(params.district)
-  const area = getAreaBySlug(params.district, params.city)
-  if (!district || !area) return {}
+  const slug = `neumaticos-camion/${params.district}/${params.city}/faq`
+  const { data } = await supabase.from('pages').select('city').eq('slug', slug).single()
+  if (!data) return {}
   return {
-    title: `Preguntas Frecuentes Neumáticos Camión ${area.name} | FAQ`,
-    description: `Respuestas a las preguntas más habituales sobre reparación de pinchazos de camión en ${area.name}. Servicio 24h disponible. Llama: +34 911 676 448`,
-    alternates: { canonical: `https://repararpinchazocoche.com/neumaticos-camion/${params.district}/${params.city}/faq` },
+    title: `Preguntas Frecuentes Neumáticos Camión ${data.city} | FAQ`,
+    description: `Respuestas a las preguntas más habituales sobre reparación de pinchazos de camión en ${data.city}. Servicio 24h disponible. Llama: +34 911 676 448`,
+    alternates: { canonical: `https://repararpinchazocoche.com/${slug}` },
   }
 }
 
 function parseFaqs(raw: string): { question: string; answer: string }[] {
   if (!raw) return []
   return raw.split('|||').map((block) => {
-    const lines = block.trim().split('\n')
-    const question = lines[0]?.replace(/^Q\d*:\s*/i, '').trim()
-    const answer = lines.slice(1).join(' ').replace(/^A:\s*/i, '').trim()
+    const trimmed = block.trim()
+    // Support two formats:
+    //   "Q1: question\nA: answer"  (newline separated)
+    //   "Q1: question|A: answer"   (pipe separated)
+    let questionPart = ''
+    let answerPart = ''
+    if (trimmed.includes('|')) {
+      const [q, ...rest] = trimmed.split('|')
+      questionPart = q
+      answerPart = rest.join('|')
+    } else {
+      const lines = trimmed.split('\n')
+      questionPart = lines[0] || ''
+      answerPart = lines.slice(1).join(' ')
+    }
+    const question = questionPart.replace(/^Q\d*:\s*/i, '').trim()
+    const answer = answerPart.replace(/^A:\s*/i, '').trim()
     return { question, answer }
   }).filter(f => f.question && f.answer)
 }
@@ -52,14 +77,23 @@ const DEFAULT_FAQS = (areaName: string, districtName: string) => [
 ]
 
 export default async function FaqPage({ params }: { params: { district: string; city: string } }) {
-  const district = getDistrictBySlug(params.district)
-  const area = getAreaBySlug(params.district, params.city)
-  if (!district || !area) notFound()
-
   const slug = `neumaticos-camion/${params.district}/${params.city}/faq`
-  const { data: page } = await supabase.from('pages').select('body_section').eq('slug', slug).single()
+  const { data: page } = await supabase.from('pages').select('body_section,city,district,address').eq('slug', slug).single()
 
-  const faqs = page?.body_section ? parseFaqs(page.body_section) : DEFAULT_FAQS(area.name, district.name)
+  // If the FAQ page does not exist in Supabase, it's a genuine 404
+  if (!page) notFound()
+
+  const area = {
+    slug: params.city,
+    name: page.city || params.city,
+    address: page.address || '',
+  }
+  const district = {
+    slug: params.district,
+    name: page.district || params.district,
+  }
+
+  const faqs = page.body_section ? parseFaqs(page.body_section) : DEFAULT_FAQS(area.name, district.name)
 
   const schemas = [
     faqSchema(faqs),
