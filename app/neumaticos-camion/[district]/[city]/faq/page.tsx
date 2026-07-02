@@ -6,29 +6,7 @@ import LeadForm from '@/components/forms/LeadForm'
 import { supabase } from '@/lib/supabase'
 import { faqSchema, breadcrumbSchema, localBusinessSchema } from '@/lib/schemas'
 
-export const revalidate = 3600
-export const dynamicParams = true
-
-export async function generateStaticParams() {
-  const { data: pages, error } = await supabase
-    .from('pages')
-    .select('slug')
-    .like('slug', 'neumaticos-camion/%/faq')
-
-  console.log(`[generateStaticParams faq] fetched ${pages?.length ?? 0} faq pages`, error ? `ERROR: ${error.message}` : '')
-
-  const params: { district: string; city: string }[] = []
-  if (pages) {
-    for (const page of pages) {
-      const parts = page.slug.split('/')
-      // neumaticos-camion/madrid/salamanca/faq -> 4 parts
-      if (parts.length === 4) {
-        params.push({ district: parts[1], city: parts[2] })
-      }
-    }
-  }
-  return params
-}
+export const dynamic = 'force-dynamic'
 
 export async function generateMetadata({ params }: { params: { district: string; city: string } }): Promise<Metadata> {
   const slug = `neumaticos-camion/${params.district}/${params.city}/faq`

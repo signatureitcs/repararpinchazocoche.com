@@ -7,24 +7,7 @@ import TrustBar from '@/components/ui/TrustBar'
 import { supabase } from '@/lib/supabase'
 import { localBusinessSchema, breadcrumbSchema } from '@/lib/schemas'
 
-export const revalidate = 3600
-export const dynamicParams = true
-
-export async function generateStaticParams() {
-  const { data: pages } = await supabase
-    .from('pages')
-    .select('slug')
-    .like('slug', 'neumaticos-camion/%')
-
-  const districts = new Set<string>()
-  if (pages) {
-    for (const page of pages) {
-      const parts = page.slug.split('/')
-      if (parts.length === 2) districts.add(parts[1]) // neumaticos-camion/madrid
-    }
-  }
-  return Array.from(districts).map((district) => ({ district }))
-}
+export const dynamic = 'force-dynamic'
 
 export async function generateMetadata({ params }: { params: { district: string } }): Promise<Metadata> {
   const slug = `neumaticos-camion/${params.district}`

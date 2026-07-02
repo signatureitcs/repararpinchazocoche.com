@@ -7,34 +7,10 @@ import TrustBar from '@/components/ui/TrustBar'
 import { supabase } from '@/lib/supabase'
 import { localBusinessSchema, breadcrumbSchema } from '@/lib/schemas'
 
-export const revalidate = 3600 // Revalidate every hour
-export const dynamicParams = true // Render pages not in generateStaticParams on-demand
-
-export async function generateStaticParams() {
-  // Fetch all pages from Supabase that match the pattern neumaticos-camion/{district}/{city}
-  const { data: pages, error } = await supabase
-    .from('pages')
-    .select('slug')
-    .like('slug', 'neumaticos-camion/%')
-    .not('slug', 'like', '%/faq') // Exclude FAQ pages - they share parent route
-
-  // Diagnostic: visible in Vercel build logs
-  console.log(`[generateStaticParams city] fetched ${pages?.length ?? 0} pages`, error ? `ERROR: ${error.message}` : '')
-
-  const params: { district: string; city: string }[] = []
-  
-  if (pages) {
-    for (const page of pages) {
-      const parts = page.slug.split('/')
-      if (parts.length === 3) {
-        // neumaticos-camion/madrid/salamanca
-        params.push({ district: parts[1], city: parts[2] })
-      }
-    }
-  }
-  
-  return params
-}
+// Pure dynamic rendering — render each page on request from Supabase.
+// Avoids Next 16 / Turbopack SSG serving issues and means new pages
+// added to Supabase are instantly live with no rebuild.
+export const dynamic = 'force-dynamic'
 
 export async function generateMetadata({ params }: { params: { district: string; city: string } }): Promise<Metadata> {
   const slug = `neumaticos-camion/${params.district}/${params.city}`
