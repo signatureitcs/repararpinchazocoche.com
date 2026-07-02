@@ -11,12 +11,25 @@ import { localBusinessSchema, breadcrumbSchema } from '@/lib/schemas'
 export const revalidate = 3600 // Revalidate every hour
 
 export async function generateStaticParams() {
+  // Fetch all pages from Supabase that match the pattern neumaticos-camion/{district}/{city}
+  const { data: pages } = await supabase
+    .from('pages')
+    .select('slug')
+    .like('slug', 'neumaticos-camion/%')
+    .not('slug', 'like', '%/faq') // Exclude FAQ pages - they share parent route
+
   const params: { district: string; city: string }[] = []
-  for (const district of LOCATIONS) {
-    for (const area of district.areas) {
-      params.push({ district: district.slug, city: area.slug })
+  
+  if (pages) {
+    for (const page of pages) {
+      const parts = page.slug.split('/')
+      if (parts.length === 3) {
+        // neumaticos-camion/madrid/salamanca
+        params.push({ district: parts[1], city: parts[2] })
+      }
     }
   }
+  
   return params
 }
 
